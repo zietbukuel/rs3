@@ -9,6 +9,10 @@ Debes instalar las siguientes dependencias:
 
 Cuando estén instalados ejecuta uno de los siguientes comandos:
 
+Crea el virtual environment
+
+    python3 -m venv env
+
 Si usas bash o zsh (Linux o Mac)
 
     source env/bin/activate
