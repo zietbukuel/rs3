@@ -4,8 +4,8 @@
 import os
 import sys
 import getopt
-import x
-import mongodb
+from mongodb import MongoDB
+from webscrapper import WebScraper
 from dotenv import load_dotenv
 
 # Carga variables del archivo .env
@@ -19,6 +19,7 @@ def help():
     print("Options:")
     print("""
     -f, --file=ARCHIVO      El archivo de texto conteniendo las palabras clave.
+    --db                    No guardar los datos en la base de datos.
     -h, --help              Este mensaje.
     -v, --version           Muestra la versión del programa.
     """)
@@ -32,7 +33,7 @@ def main(argv):
     argv: lista de argumentos pasados al script desde la línea de comandos
     """
     try:
-        opts, args = getopt.gnu_getopt(argv, "f:vh", ["file=", "version", "help"])
+        opts, args = getopt.gnu_getopt(argv, "f:vh", ["file=", "db" "version", "help"])
     except getopt.GetoptError as err:
         # Muestra el error y termina la ejecución si los argumentos no son válidos
         print(str(err))
@@ -59,29 +60,34 @@ def main(argv):
                 sys.exit()
 
             with open(file, 'r') as f:
-                for line in f:
-                    # Inicializa el cliente de Twitter
-                    xclient = x.XClient(
-                        os.getenv("CONSUMER_KEY"),
-                        os.getenv("CONSUMER_SECRET"),
-                        os.getenv("ACCESS_TOKEN"),
-                        os.getenv("ACCESS_TOKEN_SECRET")
-                    )
-                    xclient.get_tweets(line)
-
-                    # Guarda los tweets en MongoDB
-                    mongodb = mongodb.MongoDB(
+                if opt in ("--db"):
+                    db = MongoDB(
                         os.getenv("MONGODB_HOST"),
                         int(os.getenv("MONGODB_PORT")),
                         os.getenv("MONGODB_DATABASE")
                     )
-                    mongodb.connect()
-                    tweets = xclient.get_tweets(line)
+                    db.connect()
+                
+                for line in f: 
+                    # Verificar que el formato correcto exista
+                    if '|' not in line:
+                        print("Error: formato incorrecto.")
+                        continue
 
-                    for tweet in tweets:
-                        mongodb.create("tweets", tweet)
+                    # "url:selector" (url y selector son separados por "|")
+                    url, selector = line.strip().split('|')
+                    print("URL: " + url)
+                    print("Selector: " + selector)
+                    scraper = WebScraper()
+                    scraper.set_url(url)
+                    scraper.fetch()
+                    elements = scraper.select(selector)
+                    print(elements)
 
-                    mongodb.disconnect()
+                    if opt in ("--db"):
+                        # Guarda los datos en MongoDB
+                        db.create("webdata", elements)
+                        db.disconnect()
 
             # Cierra el archivo
             f.close()
