@@ -26,10 +26,10 @@ class WebScraper:
             print('URL no establecida. Por favor, establezca la URL usando set_url.')
             sys.exit()
 
-    def select(self, tag, **attributes):
+    def select(self, selector):
         if self.soup:
-            elements = self.soup.find_all(tag, **attributes)
-            return [element.get_text() for element in elements]
+            elements = self.soup.select(selector)
+            return [element.get_text().strip() for element in elements]
         else:
             print('El objeto Soup es None. ¿Falló la solicitud?')
             return []
