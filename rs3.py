@@ -4,7 +4,6 @@
 import os
 import sys
 import getopt
-from mongodb import MongoDB
 from webscrapper import WebScraper
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -12,6 +11,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import WebDriverException
 
 # Carga variables del archivo .env
 load_dotenv()
@@ -31,32 +31,20 @@ def help():
     """)
     sys.exit()
 
-def save_articles(articles, keyword, content, opt, arg):
-    for articulo in articles:
-        # Solo incluir los resultados que contienen la palabra clave
-        if keyword in articulo.text:
-            print(articulo.text)
+def wait(driver, selector):
+    """
+    Espera a que el elemento sea visible en la página
 
-            # Visitar el articulo
-            href = articulo.find_element(By.TAG_NAME, value='a').click()
-
-            scraper = WebScraper()
-            scraper.set_url(href)
-            scraper.fetch()
-            elements = scraper.select(content)
-
-            output = "output.txt"
-            if opt in ("-o", "--output"):
-                # Guarda los datos en un archivo de texto
-                output = arg
-
-            print("++ Archivo de salida: " + output)
-
-            with open(output, "w") as o:
-                o.truncate(0)
-                for element in elements:
-                    o.write(element + "\n")
-                o.close()
+    Parámetros:
+    driver: el objeto WebDriver
+    selector: el selector CSS del elemento
+    """
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+        )
+    finally:
+        driver.quit()
 
 def main(argv):
     """
@@ -87,6 +75,18 @@ def main(argv):
             file = arg
             print(">> Archivo: " + file)
 
+            output = "output.csv"
+            if opt in ("-o", "--output"):
+                # Guarda los datos en un archivo de texto
+                output = arg
+
+            # Inicializa el objeto WebScraper
+            scrapper = WebScraper()
+
+            # Si el archivo existe, eliminalo
+            if os.path.isfile(output):
+                os.remove(output)
+
             # Verifica si el archivo existe
             if not os.path.isfile(file):
                 print("Error: el archivo no existe.")
@@ -113,19 +113,19 @@ def main(argv):
                         # Inicia una busqueda por cada palabra clave
                         for keyword in os.getenv("KEYWORDS").split(","):
                             print(">> Buscando: " + keyword)
+                            wait(driver, search)
 
                             search_box = driver.find_element(By.CSS_SELECTOR, value=search)
                             # Escribir en el buscador y presionar Enter
+                            search_box.clear()
                             search_box.send_keys(keyword)
                             search_box.send_keys(Keys.RETURN)
 
-                            # Si existe el elemento de paginación
-                            if driver.find_elements(By.CSS_SELECTOR, pagination):
-                                # Espera a que la página cargue
-                                WebDriverWait(driver, 10).until(
-                                    EC.visibility_of_all_elements_located((By.CSS_SELECTOR, pagination))
-                                )
+                            # Espera a que la página cargue
+                            wait(driver, results)
 
+                            # Si existe el elemento de paginación
+                            if len(driver.find_elements(By.CSS_SELECTOR, pagination)) > 0:
                                 # Usa Selenium para navegar por las páginas de resultados
                                 pagination = driver.find_element(By.CSS_SELECTOR, value=pagination)
                                 pages = pagination.find_elements(By.CSS_SELECTOR, value=pages)
@@ -135,13 +135,17 @@ def main(argv):
                                     print(">> Página: " + str(p))
 
                                     # Espera a que la página cargue
-                                    WebDriverWait(driver, 10).until(
-                                        EC.visibility_of_all_elements_located((By.CSS_SELECTOR, results))
-                                    )
+                                    wait(driver, results)
 
                                     # Usa Selenium para extraer los resultados de la página
                                     resultados = driver.find_elements(By.CSS_SELECTOR, value=results)
-                                    save_articles(resultados, keyword, content, opt, arg)
+
+                                    links = []
+                                    for link in resultados:
+                                        links.append(link.get_attribute('href'))
+
+                                    # Exporta los datos a un archivo CSV
+                                    scrapper.export(links, content, output)
 
                                     # Si hay una excepcion tipo selenium.common.exceptions.StaleElementReferenceException
                                     # se puede intentar con un try/except
@@ -149,21 +153,28 @@ def main(argv):
                                         # Navega a la siguiente página
                                         page.click()
                                     except:
-                                        # Si hay una excepcion tipo selenium.common.exceptions.StaleElementReferenceException
-                                        # se puede intentar con un try/except
                                         print("Error: Elemento no encontrado.")
                                         break
 
                                     p += 1
                             else:
                                 # Espera a que la página cargue
-                                WebDriverWait(driver, 10).until(
-                                    EC.visibility_of_all_elements_located((By.CSS_SELECTOR, results))
-                                )
+                                wait(driver, results)
 
                                 # Usa Selenium para extraer los resultados de la página
                                 resultados = driver.find_elements(By.CSS_SELECTOR, value=results)
-                                save_articles(resultados, keyword, content, opt, arg)
+                                
+                                links = []
+                                for link in resultados:
+                                    links.append(link.get_attribute('href'))
+
+                                # Exporta los datos a un archivo CSV
+                                scrapper.export(links, content, output)
+                    except WebDriverException as e:
+                        if isinstance(e.original_exception, ConnectionRefusedError):
+                            print('La conexión fue rechazada. Por favor, verifica tu conexión a internet y la URL.')
+                        else:
+                            print(f'Error: {e}')
                     finally:
                         driver.quit()
 
