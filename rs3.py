@@ -3,18 +3,16 @@
 
 import os
 import sys
+import time
 import getopt
+import yaml
 from webscrapper import WebScraper
-from dotenv import load_dotenv
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import WebDriverException
 
-# Carga variables del archivo .env
-load_dotenv()
+# Verifica si el archivo de configuracion exists y lo carga
+config_file = "config.yaml"
+config = None
+if os.path.isfile(config_file):
+    config = yaml.safe_load(config_file)
 
 def help():
     """
@@ -23,28 +21,13 @@ def help():
     print("Usage: ./rs3.py [-f|--file=archivo.txt] [-o|--output=archivo.txt] [--db] [-h|--help] [-v|--version]")
     print("Options:")
     print("""
-    -f, --file=ARCHIVO      El archivo de texto conteniendo las palabras clave.
+    -c, --config=ARCHIVO    El archivo de configuracion a procesar.
     -o, --output=ARCHIVO    Guardar los datos en un archivo de texto.
     --db                    No guardar los datos en la base de datos.
     -h, --help              Este mensaje.
     -v, --version           Muestra la versión del programa.
     """)
     sys.exit()
-
-def wait(driver, selector):
-    """
-    Espera a que el elemento sea visible en la página
-
-    Parámetros:
-    driver: el objeto WebDriver
-    selector: el selector CSS del elemento
-    """
-    try:
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-        )
-    finally:
-        driver.quit()
 
 def main(argv):
     """
@@ -53,15 +36,19 @@ def main(argv):
     Parámetros:
     argv: lista de argumentos pasados al script desde la línea de comandos
     """
+
+    # Inicializa las variables
+    output = None
+    config_file = "config.yml"
+
     try:
-        opts, args = getopt.gnu_getopt(argv, "f:o:vh", ["file=", "output=" "db" "version", "help"])
+        opts, args = getopt.gnu_getopt(argv, "c:o:vh", ["config=", "output=" "db" "version", "help"])
     except getopt.GetoptError as err:
         # Muestra el error y termina la ejecución si los argumentos no son válidos
         print(str(err))
         sys.exit(2)
 
-    file = None
-
+    # Procesa las opciones y argumentos
     for opt, arg in opts:
         if opt in ("-h", "--help"):
             # Muestra el mensaje de ayuda y termina la ejecución
@@ -70,122 +57,109 @@ def main(argv):
             # Muestra la versión del programa y termina la ejecución
             print("1.0")
             sys.exit()
-        elif opt in ("-f", "--file"):
-            # Establece el archivo a procesar
-            file = arg
-            print(">> Archivo: " + file)
+        elif opt in ("-c", "--config"):
+            config_file = arg
+        elif opt in ("-o", "--output"):
+            output = arg
+        else:
+            # Opcion inválida
+            print("Error: opción inválida.")
+            sys.exit(1)
 
-            output = "output.csv"
-            if opt in ("-o", "--output"):
-                # Guarda los datos en un archivo de texto
-                output = arg
+    config = None
+    if os.path.isfile(config_file):
+        with open(config_file, 'r') as stream:
+            config = yaml.safe_load(stream)
+
+    if not output:
+        output = "output.csv"
+
+    # Si el archivo output existe, eliminalo
+    if os.path.isfile(output):
+        os.remove(output)
+
+    if config is not None:
+        print(">> Configuración: " + config_file)
+
+        # Carga el sitio web
+        for site in config['websites']:
+            print(">> Procesando Sitio Web: " + site['url'])
 
             # Inicializa el objeto WebScraper
             scrapper = WebScraper()
 
-            # Si el archivo existe, eliminalo
-            if os.path.isfile(output):
-                os.remove(output)
+            # Inicia una busqueda por cada palabra clave
+            for keyword in config['keywords']:
+                print(">> Buscando: " + keyword)
 
-            # Verifica si el archivo existe
-            if not os.path.isfile(file):
-                print("Error: el archivo no existe.")
-                sys.exit()
+                search_url = site['search_url']
 
-            with open(file, 'r') as f:                
-                for line in f: 
-                    # Verificar que el formato correcto exista
-                    if '|' not in line:
-                        print("Error: formato incorrecto.")
-                        continue
+                if site['data_name'] is None:
+                    # Reemplazar {} con la palabra clave
+                    search_url = site['search_url'].replace("{}", keyword)
+                    # Reemplazar espacios con un +
+                    search_url = search_url.replace(" ", "+")
+                    # Realizar la solicitud GET
+                    scrapper.set_url(search_url)
+                    scrapper.fetch()
 
-                    # "url|search|pagination|pages|results|content"
-                    url, search, pagination, pages, results, content = line.strip().split('|')
+                if site['last_page'] is None:
+                    total_pages = 1
+                    rango = total_pages + 1
+                else:
+                    total_pages = scrapper.get_total_pages(site['last_page'])
+                    rango = total_pages
 
-                    print(">> Procesando URL: " + url)
+                print(">> URL de Búsqueda: " + search_url)
+                print(">> Total de Páginas: " + str(total_pages))
 
-                    driver = webdriver.Chrome()
-                    driver.maximize_window()
+                # Navegar por todas las páginas
+                for page in range(1, rango):
+                    print(">> Página: " + str(page))
 
-                    try:
-                        driver.get(url)
+                    # Agregar el numero de pagina al final de la URL
+                    if site['last_page'] is not None:
+                        search_url = search_url + str(page) + "/"
+                        print(">> URL de la Página: " + search_url)
 
-                        # Inicia una busqueda por cada palabra clave
-                        for keyword in os.getenv("KEYWORDS").split(","):
-                            print(">> Buscando: " + keyword)
-                            wait(driver, search)
+                        scrapper.set_url(search_url)
+                        scrapper.fetch()
+                    else:
+                        # Realizar la solicitud POST
+                        scrapper.set_url(search_url)
+                        scrapper.fetch('POST', { site['data_name']: keyword })
 
-                            search_box = driver.find_element(By.CSS_SELECTOR, value=search)
-                            # Escribir en el buscador y presionar Enter
-                            search_box.clear()
-                            search_box.send_keys(keyword)
-                            search_box.send_keys(Keys.RETURN)
+                    # Seleccionar los enlaces
+                    results = scrapper.select(site['results'], text=False)
+                    
+                    links = []
+                    for result in results:
+                        link = result['href']
+                        # Si el link no empieza con https:// entonces agregar el dominio
+                        if not link.startswith("https://"):
+                            link = site['url'] + link
 
-                            # Espera a que la página cargue
-                            wait(driver, results)
+                        # Ignora los enlaces que contengan /video/ en la URL
+                        if "/video/" in result['href']:
+                            continue
 
-                            # Si existe el elemento de paginación
-                            if len(driver.find_elements(By.CSS_SELECTOR, pagination)) > 0:
-                                # Usa Selenium para navegar por las páginas de resultados
-                                pagination = driver.find_element(By.CSS_SELECTOR, value=pagination)
-                                pages = pagination.find_elements(By.CSS_SELECTOR, value=pages)
+                        # Ignora los enlaces que contengan /gallery/ en la URL
+                        if "/gallery/" in result['href']:
+                            continue
 
-                                p = 1
-                                for page in pages:
-                                    print(">> Página: " + str(p))
+                        # Agrega el enlace a la lista
+                        links.append(link)
 
-                                    # Espera a que la página cargue
-                                    wait(driver, results)
+                    for link in links:
+                        print(">> Enlace: " + link)
 
-                                    # Usa Selenium para extraer los resultados de la página
-                                    resultados = driver.find_elements(By.CSS_SELECTOR, value=results)
+                    # Exportar los datos
+                    scrapper.export(links, site['content'], output)
+                print("-----------------------------")
 
-                                    links = []
-                                    for link in resultados:
-                                        links.append(link.get_attribute('href'))
-
-                                    # Exporta los datos a un archivo CSV
-                                    scrapper.export(links, content, output)
-
-                                    # Si hay una excepcion tipo selenium.common.exceptions.StaleElementReferenceException
-                                    # se puede intentar con un try/except
-                                    try:
-                                        # Navega a la siguiente página
-                                        page.click()
-                                    except:
-                                        print("Error: Elemento no encontrado.")
-                                        break
-
-                                    p += 1
-                            else:
-                                # Espera a que la página cargue
-                                wait(driver, results)
-
-                                # Usa Selenium para extraer los resultados de la página
-                                resultados = driver.find_elements(By.CSS_SELECTOR, value=results)
-                                
-                                links = []
-                                for link in resultados:
-                                    links.append(link.get_attribute('href'))
-
-                                # Exporta los datos a un archivo CSV
-                                scrapper.export(links, content, output)
-                    except WebDriverException as e:
-                        if isinstance(e.original_exception, ConnectionRefusedError):
-                            print('La conexión fue rechazada. Por favor, verifica tu conexión a internet y la URL.')
-                        else:
-                            print(f'Error: {e}')
-                    finally:
-                        driver.quit()
-
-                # Cierra el archivo
-                f.close()
-        else:
-            assert False, "Error: opción inválida."
-
-    if not file:
-        # Muestra el mensaje de ayuda si no se especifica ningún archivo
-        help()
+    if not config:
+        print("Error: El archivo de configuración no existe.")
+        sys.exit(1)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

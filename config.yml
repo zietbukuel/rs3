@@ -1,0 +1,37 @@
+keywords:
+  - delincuencia
+  - seguridad ciudadana
+  - robo
+  - asalto
+  - violencia
+  - secuestro
+  - extorsion
+  - persecucion
+  - asesinato
+  - crimen
+  - delito
+websites:
+  - url: https://rpp.pe
+    search_url: https://rpp.pe/buscar
+    last_page: null
+    results: h2.news__title > a
+    content: .article__main .body > *:not(div)
+    data_name: texto
+  - url: https://elcomercio.pe
+    search_url: https://elcomercio.pe/buscar/{}/todas/descendiente/
+    last_page: .pagination > a:nth-last-of-type(2)
+    results: a.story-item__title
+    content: .story-contents__content section > *:not(div)
+    data_name: null
+  - url: https://diariocorreo.pe
+    search_url: https://diariocorreo.pe/buscar/{}/todas/descendiente/
+    last_page: .pagination > a:nth-last-of-type(2)
+    results: a.story-item__title
+    content: .story-contents__content section > *:not(div)
+    data_name: null
+  - url: https://peru21.pe
+    search_url: https://peru21.pe/buscar/{}/todas/descendiente/
+    last_page: .pagination > a:nth-last-of-type(2)
+    results: a.story-item__title
+    content: .story-contents__content section > *:not(div)
+    data_name: null

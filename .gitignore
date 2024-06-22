@@ -1,8 +1,7 @@
 # Lo que debe ignorar git
 /__pycache__
 /venv
-.env
-*.txt
+/env
 *.csv
 
 # Lo que no debe ignorar git
