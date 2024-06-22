@@ -5,6 +5,7 @@ import sys
 import os
 import csv
 import time
+import signalhandler
 import pandas as pd
 from bs4 import BeautifulSoup
 
@@ -95,20 +96,24 @@ class WebScraper:
         data = []
 
         for link in links:
-            self.url = link
-            self.fetch()
-            contenido = self.select(selector)
-            titulo = self.select("title")[0]
+            try:
+                print(f"Procesando {link} ...")
+                self.url = link
+                self.fetch()
+                contenido = self.select(selector)
+                titulo = self.select("title")[0]
 
-            if not contenido or not titulo:
-                print("Error: No se encontró el contenido o el título para la URL: " + link)
-                break
-            
-            # Agregar los datos a la lista
-            data.append([titulo, ' '.join(contenido)])
+                if not contenido or not titulo:
+                    print("Error: No se encontró el contenido o el título para la URL: " + link)
+                    break
+                
+                # Agregar los datos a la lista
+                data.append([titulo, ' '.join(contenido)])
 
-            # Esperar 2 segundos
-            time.sleep(2)
+                # Esperar 2 segundos
+                time.sleep(2)
+            except KeyboardInterrupt:
+                continue
             
         # Crear un DataFrame con los datos
         df = pd.DataFrame(data, columns=['Titulo', 'Contenido'])

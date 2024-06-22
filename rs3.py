@@ -149,10 +149,7 @@ def main(argv):
 
                         # Agrega el enlace a la lista
                         links.append(link)
-
-                    for link in links:
-                        print(">> Enlace: " + link)
-
+                        
                     # Exportar los datos
                     scrapper.export(links, site['content'], output)
                 print("-----------------------------")
