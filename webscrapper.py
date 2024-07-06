@@ -4,7 +4,6 @@ import requests
 import sys
 import os
 import csv
-import time
 import signalhandler
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -109,9 +108,6 @@ class WebScraper:
                 
                 # Agregar los datos a la lista
                 data.append([titulo, ' '.join(contenido)])
-
-                # Esperar 2 segundos
-                time.sleep(2)
             except KeyboardInterrupt:
                 continue
             

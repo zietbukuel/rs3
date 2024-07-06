@@ -3,7 +3,6 @@
 
 import os
 import sys
-import time
 import getopt
 import yaml
 from webscrapper import WebScraper
@@ -113,16 +112,22 @@ def main(argv):
                 print(">> URL de Búsqueda: " + search_url)
                 print(">> Total de Páginas: " + str(total_pages))
 
+                # Guardar la URL base sin el número de página
+                base_url = search_url
+                if site['last_page'] is not None:
+                    # Si la URL termina en /1/ entonces eliminar el número de página
+                    if search_url.endswith("/1/"):
+                        base_url = search_url.rsplit('/', 2)[0]
+
                 # Navegar por todas las páginas
                 for page in range(1, rango):
                     print(">> Página: " + str(page))
-
-                    # Agregar el numero de pagina al final de la URL
+                    
                     if site['last_page'] is not None:
-                        search_url = search_url + str(page) + "/"
-                        print(">> URL de la Página: " + search_url)
-
-                        scrapper.set_url(search_url)
+                        # Construir la URL de la página actual
+                        current_page_url = f"{base_url}{page}/"
+                        print(">> URL de la Página: " + current_page_url)
+                        scrapper.set_url(current_page_url)
                         scrapper.fetch()
                     else:
                         # Realizar la solicitud POST
