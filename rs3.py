@@ -17,12 +17,12 @@ def help():
     """
     Muestra el mensaje de ayuda con las opciones disponibles para el uso del script
     """
-    print("Usage: ./rs3.py [-f|--file=archivo.txt] [-o|--output=archivo.txt] [--db] [-h|--help] [-v|--version]")
+    print("Usage: ./rs3.py [-f|--file=archivo.txt] [-o|--output=archivo.txt] [--pagina=NMBERO] [-h|--help] [-v|--version]")
     print("Options:")
     print("""
     -c, --config=ARCHIVO    El archivo de configuracion a procesar.
     -o, --output=ARCHIVO    Guardar los datos en un archivo de texto.
-    --db                    No guardar los datos en la base de datos.
+    -p, --pagina=NUMERO     Número de página de donde empezar.
     -h, --help              Este mensaje.
     -v, --version           Muestra la versión del programa.
     """)
@@ -38,10 +38,12 @@ def main(argv):
 
     # Inicializa las variables
     output = None
+    pagina = None
+    keyword = None
     config_file = "config.yml"
 
     try:
-        opts, args = getopt.gnu_getopt(argv, "c:o:vh", ["config=", "output=" "db" "version", "help"])
+        opts, args = getopt.gnu_getopt(argv, "c:o:p:k:vh", ["config=", "output=", "pagina=", "keyword=","version", "help"])
     except getopt.GetoptError as err:
         # Muestra el error y termina la ejecución si los argumentos no son válidos
         print(str(err))
@@ -60,8 +62,15 @@ def main(argv):
             config_file = arg
         elif opt in ("-o", "--output"):
             output = arg
+        elif opt in ("-p", "--pagina"):
+            if not arg.isdigit():
+                print("Error: --pagina debe ser un número entero.")
+                sys.exit(1)
+            pagina = int(arg)
+        elif opt in ("-k", "--keyword"):
+            keyword = arg
         else:
-            # Opcion inválida
+            # Opción inválida
             print("Error: opción inválida.")
             sys.exit(1)
 
@@ -73,9 +82,17 @@ def main(argv):
     if not output:
         output = "output.csv"
 
-    # Si el archivo output existe, eliminalo
+    # Preguntar antes de eliminar el archivo de salida
     if os.path.isfile(output):
-        os.remove(output)
+        print("El archivo de salida ya existe. ¿Desea sobrescribirlo?")
+        respuesta = input("S/N: ")
+
+        if respuesta.lower() == "s":
+            os.remove(output)
+
+    if not pagina or not keyword:
+        print("Error: Debe especificar al menos una página y una palabra clave.")
+        sys.exit(1)
 
     if config is not None:
         print(">> Configuración: " + config_file)
@@ -88,14 +105,14 @@ def main(argv):
             scrapper = WebScraper()
 
             # Inicia una busqueda por cada palabra clave
-            for keyword in config['keywords']:
-                print(">> Buscando: " + keyword)
+            for _keyword in config['keywords']:
+                print(">> Buscando: " + _keyword)
 
                 search_url = site['search_url']
 
                 if site['data_name'] is None:
                     # Reemplazar {} con la palabra clave
-                    search_url = site['search_url'].replace("{}", keyword)
+                    search_url = site['search_url'].replace("{}", _keyword)
                     # Reemplazar espacios con un +
                     search_url = search_url.replace(" ", "+")
                     # Realizar la solicitud GET
@@ -119,8 +136,14 @@ def main(argv):
                     if search_url.endswith("/1/"):
                         base_url = search_url.rsplit('/', 2)[0]
 
+                # Página de donde empezar
+                start = 1
+                if pagina is not None:
+                    if keyword == _keyword:
+                        start = int(pagina)
+
                 # Navegar por todas las páginas
-                for page in range(1, rango):
+                for page in range(start, rango):
                     print(">> Página: " + str(page))
                     
                     if site['last_page'] is not None:
@@ -132,7 +155,7 @@ def main(argv):
                     else:
                         # Realizar la solicitud POST
                         scrapper.set_url(search_url)
-                        scrapper.fetch('POST', { site['data_name']: keyword })
+                        scrapper.fetch('POST', { site['data_name']: _keyword })
 
                     # Seleccionar los enlaces
                     results = scrapper.select(site['results'], text=False)
