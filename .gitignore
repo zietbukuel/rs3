@@ -3,6 +3,7 @@
 /venv
 /env
 *.csv
+*.txt
 
 # Lo que no debe ignorar git
 !requirements.txt
