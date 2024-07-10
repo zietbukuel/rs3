@@ -90,9 +90,10 @@ def main(argv):
         if respuesta.lower() == "s":
             os.remove(output)
 
-    if not pagina or not keyword:
-        print("Error: Debe especificar al menos una página y una palabra clave.")
-        sys.exit(1)
+    if pagina or keyword:
+        if not pagina or not keyword:
+            print("Error: Debe especificar al menos una página y una palabra clave.")
+            sys.exit(1)
 
     if config is not None:
         print(">> Configuración: " + config_file)
