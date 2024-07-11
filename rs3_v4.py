@@ -2,7 +2,7 @@ import pandas as pd
 import re
 
 # Cargar el archivo CSV original
-file_path = 'output (1).csv'  # Actualiza la ruta según tu archivo
+file_path = 'output (1).csv'
 data = pd.read_csv(file_path)
 
 # Crear una lista para almacenar los datos normalizados
@@ -12,10 +12,6 @@ normalized_data = []
 for index, row in data.iterrows():
     title = row['Titulo']
     content = row['Contenido']
-    
-    # Asegurarse de que el contenido sea una cadena de texto
-    if not isinstance(content, str):
-        content = str(content)
     
     # Dividir el contenido en oraciones utilizando una expresión regular
     sentences = re.split(r'(?<=[.!?]) +', content)
